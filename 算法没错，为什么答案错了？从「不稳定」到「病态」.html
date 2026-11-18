@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>算法没错，为什么答案错了</title>
+<style>
+:root{--ink:#151515;--mut:#6b6b6b;--acc:#a33a28;--line:#dcd7d1;--bg:#fdfcfa}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:17.5px/2 "Source Han Serif SC","Songti SC","Times New Roman",STSong,SimSun,Georgia,serif}
+main{max-width:740px;margin:0 auto;padding:56px 28px 80px}
+h1{font-size:30px;line-height:1.45;margin:0 0 12px}
+.sub{color:var(--mut);font-size:14px;margin-bottom:34px}
+h2{font-size:21px;margin:50px 0 14px;padding-top:18px;border-top:1px solid var(--line)}
+h2 .n{display:block;color:var(--acc);font-size:14px;letter-spacing:.1em;font-weight:400;margin-bottom:6px}
+p{margin:0 0 15px;text-align:justify}
+.lead{font-size:18.5px}
+.concl{margin:22px 0 6px;padding:14px 18px;border-left:3px solid var(--acc);background:#f7f2ee}
+.concl b{color:var(--acc)}
+.eq{margin:26px 0;padding:22px 20px;text-align:center;border:1px solid var(--line);background:#fff;font-size:19px;line-height:1.9;letter-spacing:.3px}
+.eq small{display:block;color:var(--mut);font-size:13px;margin-top:12px;letter-spacing:0}
+table{width:100%;border-collapse:collapse;margin:20px 0;font-size:15px}
+th,td{border-bottom:1px solid var(--line);padding:9px 8px;text-align:left;vertical-align:top}
+th{background:#f4f0ec}
+figure{margin:34px 0}
+figcaption{color:var(--mut);font-size:14.5px;line-height:1.8;margin-top:12px}
+details{margin:16px 0;border:1px solid var(--line);border-radius:4px;background:#fff}
+summary{cursor:pointer;padding:11px 16px;font-size:15px;color:var(--acc);background:#f9f6f3}
+details .in{padding:4px 18px 12px;font-size:15.5px;line-height:1.85}
+details .in p{margin:0 0 10px}
+.src{font-size:14px;color:var(--mut)}
+.src li{margin-bottom:7px;line-height:1.7}
+.steps{margin:0 0 16px;padding:0;list-style:none;counter-reset:s}
+.steps li{counter-increment:s;position:relative;margin:0 0 10px;padding-left:32px}
+.steps li:before{content:counter(s);position:absolute;left:0;top:3px;width:20px;height:20px;border-radius:50%;background:#f1e6e0;color:var(--acc);font:12px/20px system-ui,sans-serif;text-align:center}
+html{scroll-behavior:smooth}
+sub,sup{font-size:.7em;line-height:0}
+svg{display:block}
+.toc{margin:0 0 8px;padding:14px 18px;border:1px solid var(--line);background:#fff;font-size:14px;line-height:1.95}
+.toc a{display:block;padding:1px 0;color:var(--mut);text-decoration:none}
+.toc a:hover{color:var(--acc)}
+.toc a b{display:inline-block;width:30px;color:var(--acc);font-weight:400;font-size:12px;margin-right:2px}
+table tr:nth-child(even) td{background:#faf8f5}
+summary:hover{background:#f1ece6}
+@media (max-width:600px){main{padding:34px 16px 56px}body{font-size:17px;line-height:1.9}h1{font-size:25px}h2{font-size:19px;margin:40px 0 12px}figure{overflow-x:auto;margin:26px 0}figure svg{min-width:600px}figcaption{font-size:13.5px}.eq{font-size:16px;padding:16px 10px;letter-spacing:0}table{font-size:13.5px}.toc{font-size:13px}.steps li{padding-left:30px}.src{font-size:13px}}
+@media print{@page{size:A4;margin:18mm 16mm}body{background:#fff;font-size:11pt;line-height:1.75}main{max-width:none;padding:0}h2{page-break-after:avoid}figure,table,.concl{page-break-inside:avoid}}
+</style>
+</head>
+<body>
+<main>
+
+<h1>算法没错，为什么答案错了</h1>
+<div class="lead">————从「不稳定」到「病态」</div>
+<div class="sub">作者：RainHan    |    目标读者：学过线性代数</div>
+  
+<p class="lead">一个每一步都没算错的算法，为什么会给出错得离谱的答案。答案是：问题不在算法里。</p>
+
+<nav class="toc">
+<a href="#s1"><b>01</b>评价算法：四个维度，只有稳定属于算法</a>
+<a href="#s2"><b>02</b>不稳定：算法放大的是舍入误差</a>
+<a href="#s3"><b>03</b>Wilkinson 1959：系数动一点点，十个根变成复数</a>
+<a href="#s4"><b>04</b>条件数：把「敏感」变成一个可算的数</a>
+<a href="#s5"><b>05</b>向后稳定：算法保证了什么，又没保证什么</a>
+<a href="#s6"><b>06</b>病态的实质：约束不独立，不是数太大</a>
+<a href="#s7"><b>07</b>矩阵补全：换观测模式，就是换问题</a>
+<a href="#s8"><b>08</b>结果不对时，按什么顺序排查</a>
+</nav>
+
+<h2 id="s1"><span class="n">01</span>评价算法：四个维度，只有稳定属于算法</h2>
+
+<p>衡量一个算法，常用四个词：准确（accuracy）、高效（efficiency）、稳定（stability）、鲁棒（robustness）。混用会导致后面把「算法不稳定」和「问题病态」当成一件事。</p>
+<p><b>准确（accuracy）</b>：答案离真值有多近。度量有两种：绝对误差，取估计值与真值之差；相对误差，取这个差再除以真值的大小<sup>[1]</sup>。</p>
+<p><b>高效（efficiency）</b>：达到给定精度要花多少资源。通常是时间和空间；中间步骤调用 API（应用程序接口）时，费用也是资源，按次计费，规模一大就是主要成本。资源与精度绑在一起：精度目标提高，资源跟着涨，所以论效率总要带上精度目标<sup>[1]</sup>。</p>
+<p><b>稳定（stability）</b>：算术只能保留有限位小数，这个限制会不会被算法放大。</p>
+<p><b>鲁棒（robustness）</b>：换一批数据，结果还靠不靠得住。窄的说法是遇到坏点、离群值（outlier）不崩；宽的说法是能在大范围数据上可靠工作，随机数据也算<sup>[1]</sup>。</p>
+<p>四个词分属两层：准确、高效、鲁棒评价「问题 + 数据 + 算法」这个整体，稳定只评价算法本身。</p>
+<p>分层的用处：准确不达标可能是问题无解，鲁棒不达标可能是数据脏，两者与数值误差无关，不能算在算法头上。</p>
+
+<div class="concl"><b>结论：</b>稳定性属于算法，良态与病态属于问题，两者必须分开。</div>
+
+<h2 id="s2"><span class="n">02</span>不稳定：算法放大的是舍入误差</h2>
+
+<p>实数有无限多位，机器用固定长度的二进制近似，这个近似叫浮点数（floating-point number）。每存一个数，末尾的一截被舍掉。</p>
+<p>舍掉的部分叫舍入误差（rounding error）。</p>
+<p>另一种误差叫截断误差（truncation error）：用有限步近似无限过程，例如把无穷级数截到前十项、用一千次迭代逼近极限，或把连续问题切成有限网格（离散化，discretization）<sup>[1]</sup>。截断误差来自近似本身——少算几步，或把连续切成离散——是设计选择；舍入误差来自机器存不下，是硬件限制。前者的修法是加步数、加密网格，后者是换算法或加精度。</p>
+<p><b>不稳定的算法</b>（unstable algorithm）：会把舍入误差越滚越大。</p>
+<ol class="steps">
+<li>算式：10<sup>16</sup> + 1 − 10<sup>16</sup>。</li>
+<li>先算 10<sup>16</sup> + 1。10<sup>16</sup> 的二进制是 1 后跟 16 个 0，占 17 位；双精度（double precision）只存约 16 位十进制有效数字，即 53 位二进制。</li>
+<li>那个 1 要占第 17 位，超出范围，被舍掉。10<sup>16</sup> + 1 得 10<sup>16</sup>。</li>
+<li>再算 10<sup>16</sup> − 10<sup>16</sup>，得 0。</li>
+<li>数学上等于 1，浮点上等于 0。加减法没错，错在第一步那个 1 没被存下。</li>
+</ol>
+<p>常见的说法是「轻微扰动带来巨大变化」。这个说法有三个缺口，第 3、4 节逐个补。</p>
+<ol class="steps">
+<li>没有相对（relative）。绝对变化 10<sup>−6</sup> 的好坏取决于量本身是 1 还是 10<sup>−6</sup>。</li>
+<li>没有最坏情况（worst case）。它只是上界，不保证每次发生。</li>
+<li>没有说明扰动来自哪里。本节指算术误差，下一节指数据误差。</li>
+</ol>
+
+<div class="concl"><b>结论：</b>不稳定指算法放大机器误差，这里的扰动指算术误差。</div>
+
+<h2 id="s3"><span class="n">03</span>Wilkinson 1959：系数动一点点，十个根变成复数</h2>
+
+<p>取多项式（polynomial）p(x) = (x−1)(x−2)…(x−20)。二十个根（root），全是正整数，相邻间隔 1。</p>
+<p>它有两种写法：</p>
+<ol class="steps">
+<li>乘积形式，二十个括号相乘。</li>
+<li>展开形式，c<sub>20</sub>x<sup>20</sup> + c<sub>19</sub>x<sup>19</sup> + … + c<sub>0</sub>。</li>
+<li>两种写法数学上等价，根相同。</li>
+</ol>
+<p>展开后，x<sup>19</sup> 的系数是 −210<sup>[2]</sup>。Wilkinson 把它改成 −210 − 2<sup>−23</sup>，重新求根。</p>
+<p>改动量：</p>
+<ol class="steps">
+<li>绝对量 2<sup>−23</sup> ≈ 1.19×10<sup>−7</sup>。</li>
+<li>相对量 1.19×10<sup>−7</sup> / 210 ≈ 5.7×10<sup>−10</sup>。</li>
+<li>落在第十位有效数字，动了一个单位。</li>
+</ol>
+<p>结果分两部分。十个根变成复数（complex number），形成五对共轭（conjugate，实部相同、虚部相反）复根；其余十个仍在实轴，但位置偏移，最远的是 20 → 20.84691<sup>[3][4]</sup>。</p>
+<p>2<sup>−23</sup> 的来源：</p>
+<ol class="steps">
+<li>Pilot ACE 是英国国家物理实验室 1950 年造的一台早期计算机，按图灵的 ACE 方案实现，Wilkinson 参与研制。它的浮点有效数字只有 30 位二进制。</li>
+<li>该精度下，−210 附近相邻浮点数的间距是 2<sup>−23</sup>。</li>
+<li>更小的改动会被存成同一个数，无法区分。</li>
+<li>机器精度再低一点，改动在存储阶段就被抹掉。</li>
+</ol>
+<p>由表示方式产生的误差叫表示误差（representation error）<sup>[3]</sup>。</p>
+<p>责任在这里换了位置。前面说不稳定，责任在算法；这里算法没有问题，用当时最好的求根算法、以双精度重算，结果相同。根偏移的原因是「二十个根压进二十个系数」这一表示损失了精度。</p>
+<p>扰动不在算术里，在数据里。</p>
+
+<figure>
+<svg viewBox="0 0 640 400" width="100%" role="img" aria-label="Wilkinson 多项式扰动前后二十个根在复平面上的位置">
+  <defs><marker id="ar" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 z" fill="#b9b2a9"/></marker></defs>
+  <rect x="0" y="0" width="640" height="400" fill="#fff"/>
+  <g stroke="#f0eae4" stroke-width="1">
+    <line x1="58" y1="49.5" x2="616" y2="49.5"/>
+    <line x1="58" y1="143" x2="616" y2="143"/>
+    <line x1="58" y1="236.5" x2="616" y2="236.5"/>
+  </g>
+  <g stroke="#9a948c" stroke-width="1">
+    <line x1="58" y1="330" x2="616" y2="330"/>
+    <line x1="58" y1="34" x2="58" y2="330"/>
+    <line x1="177.9" y1="330" x2="177.9" y2="336"/><line x1="308.3" y1="330" x2="308.3" y2="336"/>
+    <line x1="438.7" y1="330" x2="438.7" y2="336"/><line x1="569.1" y1="330" x2="569.1" y2="336"/>
+    <line x1="52" y1="236.5" x2="58" y2="236.5"/><line x1="52" y1="143" x2="58" y2="143"/><line x1="52" y1="49.5" x2="58" y2="49.5"/>
+  </g>
+  <g font-size="12" fill="#6b6b6b" text-anchor="middle">
+    <text x="177.9" y="352">5</text><text x="308.3" y="352">10</text><text x="438.7" y="352">15</text><text x="569.1" y="352">20</text>
+  </g>
+  <g font-size="12" fill="#6b6b6b" text-anchor="end">
+    <text x="47" y="241">1</text><text x="47" y="147">2</text><text x="47" y="54">3</text>
+  </g>
+  <text x="622" y="349" font-size="13" fill="#6b6b6b">Re</text>
+  <text x="47" y="28" font-size="13" fill="#6b6b6b" text-anchor="end">Im</text>
+  <g stroke="none"><line x1="308.3" y1="330" x2="310.7" y2="269.9" stroke="#b9b2a9" stroke-width="1" marker-end="url(#ar)"/><line x1="334.3" y1="330" x2="310.7" y2="269.9" stroke="#b9b2a9" stroke-width="1" marker-end="url(#ar)"/><line x1="360.4" y1="330" x2="355.0" y2="175.5" stroke="#b9b2a9" stroke-width="1" marker-end="url(#ar)"/><line x1="386.5" y1="330" x2="355.0" y2="175.5" stroke="#b9b2a9" stroke-width="1" marker-end="url(#ar)"/><line x1="412.6" y1="330" x2="412.3" y2="94.5" stroke="#b9b2a9" stroke-width="1" marker-end="url(#ar)"/><line x1="438.6" y1="330" x2="412.3" y2="94.5" stroke="#b9b2a9" stroke-width="1" marker-end="url(#ar)"/><line x1="464.7" y1="330" x2="483.7" y2="67.0" stroke="#b9b2a9" stroke-width="1" marker-end="url(#ar)"/><line x1="490.8" y1="330" x2="483.7" y2="67.0" stroke="#b9b2a9" stroke-width="1" marker-end="url(#ar)"/><line x1="516.8" y1="330" x2="556.0" y2="148.6" stroke="#b9b2a9" stroke-width="1" marker-end="url(#ar)"/><line x1="542.9" y1="330" x2="556.0" y2="148.6" stroke="#b9b2a9" stroke-width="1" marker-end="url(#ar)"/><line x1="569.0" y1="330" x2="591.1" y2="330.0" stroke="#b9b2a9" stroke-width="1" marker-end="url(#ar)"/></g>
+  <g><circle cx="73.6" cy="330" r="4.2" fill="#fff" stroke="#b9b2a9" stroke-width="1.4"/><circle cx="99.7" cy="330" r="4.2" fill="#fff" stroke="#b9b2a9" stroke-width="1.4"/><circle cx="125.8" cy="330" r="4.2" fill="#fff" stroke="#b9b2a9" stroke-width="1.4"/><circle cx="151.9" cy="330" r="4.2" fill="#fff" stroke="#b9b2a9" stroke-width="1.4"/><circle cx="177.9" cy="330" r="4.2" fill="#fff" stroke="#b9b2a9" stroke-width="1.4"/><circle cx="204.0" cy="330" r="4.2" fill="#fff" stroke="#b9b2a9" stroke-width="1.4"/><circle cx="230.1" cy="330" r="4.2" fill="#fff" stroke="#b9b2a9" stroke-width="1.4"/><circle cx="256.1" cy="330" r="4.2" fill="#fff" stroke="#b9b2a9" stroke-width="1.4"/><circle cx="282.2" cy="330" r="4.2" fill="#fff" stroke="#b9b2a9" stroke-width="1.4"/><circle cx="308.3" cy="330" r="4.2" fill="#fff" stroke="#b9b2a9" stroke-width="1.4"/><circle cx="334.3" cy="330" r="4.2" fill="#fff" stroke="#b9b2a9" stroke-width="1.4"/><circle cx="360.4" cy="330" r="4.2" fill="#fff" stroke="#b9b2a9" stroke-width="1.4"/><circle cx="386.5" cy="330" r="4.2" fill="#fff" stroke="#b9b2a9" stroke-width="1.4"/><circle cx="412.6" cy="330" r="4.2" fill="#fff" stroke="#b9b2a9" stroke-width="1.4"/><circle cx="438.6" cy="330" r="4.2" fill="#fff" stroke="#b9b2a9" stroke-width="1.4"/><circle cx="464.7" cy="330" r="4.2" fill="#fff" stroke="#b9b2a9" stroke-width="1.4"/><circle cx="490.8" cy="330" r="4.2" fill="#fff" stroke="#b9b2a9" stroke-width="1.4"/><circle cx="516.8" cy="330" r="4.2" fill="#fff" stroke="#b9b2a9" stroke-width="1.4"/><circle cx="542.9" cy="330" r="4.2" fill="#fff" stroke="#b9b2a9" stroke-width="1.4"/><circle cx="569.0" cy="330" r="4.2" fill="#fff" stroke="#b9b2a9" stroke-width="1.4"/></g>
+  <g><circle cx="73.6" cy="330.0" r="4.4" fill="#a33a28"/><circle cx="99.7" cy="330.0" r="4.4" fill="#a33a28"/><circle cx="125.8" cy="330.0" r="4.4" fill="#a33a28"/><circle cx="151.9" cy="330.0" r="4.4" fill="#a33a28"/><circle cx="177.9" cy="330.0" r="4.4" fill="#a33a28"/><circle cx="204.0" cy="330.0" r="4.4" fill="#a33a28"/><circle cx="230.1" cy="330.0" r="4.4" fill="#a33a28"/><circle cx="256.3" cy="330.0" r="4.4" fill="#a33a28"/><circle cx="280.0" cy="330.0" r="4.4" fill="#a33a28"/><circle cx="310.7" cy="269.9" r="4.4" fill="#a33a28"/><circle cx="310.7" cy="269.9" r="4.4" fill="#a33a28"/><circle cx="355.0" cy="175.5" r="4.4" fill="#a33a28"/><circle cx="355.0" cy="175.5" r="4.4" fill="#a33a28"/><circle cx="412.3" cy="94.5" r="4.4" fill="#a33a28"/><circle cx="412.3" cy="94.5" r="4.4" fill="#a33a28"/><circle cx="483.7" cy="67.0" r="4.4" fill="#a33a28"/><circle cx="483.7" cy="67.0" r="4.4" fill="#a33a28"/><circle cx="556.0" cy="148.6" r="4.4" fill="#a33a28"/><circle cx="556.0" cy="148.6" r="4.4" fill="#a33a28"/><circle cx="591.1" cy="330.0" r="4.4" fill="#a33a28"/></g>
+  <g font-size="13" fill="#2b2b2b">
+    <circle cx="70" cy="16" r="4.5" fill="#fff" stroke="#b9b2a9" stroke-width="1.4"/>
+    <line x1="81" y1="16" x2="93" y2="16" stroke="#b9b2a9" stroke-width="1" marker-end="url(#ar)"/>
+    <circle cx="102" cy="16" r="4.4" fill="#a33a28"/>
+    <text x="113" y="21">整数根 → 扰动后</text>
+  </g>
+  <text x="536" y="310" font-size="13" fill="#a33a28">20 → 20.85</text>
+</svg>
+<figcaption>图 1 ｜ 系数动 5.7×10<sup>−10</sup>，根离开实轴。浅色空心圆是扰动前的整数根，红点是扰动后的位置：1 到 5 原地不动，6 到 9 只挪一点，10 到 19 两两并成五对共轭复根（只画上半平面），最远的 20 挪到 20.85。求解器没有出错，是这组根对这组系数敏感。</figcaption>
+</figure>
+
+<div class="concl"><b>结论：</b>同一个算法，换一份几乎相同的数据，答案从 20 变成 20.8——这不是算法的毛病。</div>
+
+<h2 id="s4"><span class="n">04</span>条件数：把「敏感」变成一个可算的数</h2>
+
+<p>度量问题本身敏感度的量是条件数（condition number），记作 κ。定义分五步：</p>
+<ol class="steps">
+<li>取输入 b。解方程时是右端项，求根时是系数。</li>
+<li>加扰动 δb。可以是测量误差，也可以是存储误差。</li>
+<li>得到扰动后的解 x + δx。</li>
+<li>计算 ( ‖δx‖ / ‖x‖ ) ÷ ( ‖δb‖ / ‖b‖ )。</li>
+<li>对所有 δb 取最大值，即 κ(A)。</li>
+</ol>
+<p>含义：输入相对误差为 ε 时，输出相对误差最多为 κε。</p>
+
+<div class="eq">κ(A) &nbsp;=&nbsp; max<sub>δb</sub> [ ( ‖δx‖ / ‖x‖ ) ÷ ( ‖δb‖ / ‖b‖ ) ]<small>对所有扰动方向取最大；分子分母都是相对量</small></div>
+
+<p>三个限定，缺一不可：</p>
+<ol class="steps">
+<li><b>相对</b>（relative）。分子分母都是相对量，绝对量无法判断大小。</li>
+<li><b>固定范数与缩放</b>（norm and scaling）。范数指衡量向量大小的方式，缩放指各行的相对比例。方程组每行乘 2，解不变，κ 变。κ 属于表示，不属于矩阵本身。</li>
+<li><b>最坏情况</b>（worst case）。κ 是上确界（supremum，最小的上界），不是典型值。</li>
+</ol>
+<p>有效数字换算：</p>
+<ol class="steps">
+<li>双精度约 16 位十进制有效数字。</li>
+<li>κ = 10<sup>8</sup> 时，log<sub>10</sub>κ = 8。</li>
+<li>16 − 8 = 8。</li>
+<li>答案前 8 位可信，后 8 位由误差占据。</li>
+</ol>
+
+<div class="eq">有效数字 &nbsp;≈&nbsp; 16 − log<sub>10</sub> κ<small>κ 每增大十倍，可用的十进制位少一位</small></div>
+
+<table>
+<tr><th>κ</th><th>可用位数</th></tr>
+<tr><td>1</td><td>16</td></tr>
+<tr><td>10<sup>2</sup></td><td>14</td></tr>
+<tr><td>10<sup>8</sup></td><td>8</td></tr>
+<tr><td>10<sup>16</sup></td><td>0</td></tr>
+</table>
+
+<figure>
+<svg viewBox="0 0 640 250" width="100%" role="img" aria-label="双精度十六位有效数字在不同条件数下被吃掉多少">
+  <rect x="0" y="0" width="640" height="250" fill="#fff"/>
+  <g font-size="14" fill="#2b2b2b" text-anchor="end">
+    <text x="108" y="77">κ = 1</text>
+    <text x="108" y="127">κ = 10<tspan dy="-6" font-size="10">8</tspan></text>
+    <text x="108" y="177">κ = 10<tspan dy="-6" font-size="10">16</tspan></text>
+  </g>
+  <rect x="120" y="60" width="26" height="22" rx="3" fill="#2b2b2b"/><rect x="150" y="60" width="26" height="22" rx="3" fill="#2b2b2b"/><rect x="180" y="60" width="26" height="22" rx="3" fill="#2b2b2b"/><rect x="210" y="60" width="26" height="22" rx="3" fill="#2b2b2b"/><rect x="240" y="60" width="26" height="22" rx="3" fill="#2b2b2b"/><rect x="270" y="60" width="26" height="22" rx="3" fill="#2b2b2b"/><rect x="300" y="60" width="26" height="22" rx="3" fill="#2b2b2b"/><rect x="330" y="60" width="26" height="22" rx="3" fill="#2b2b2b"/><rect x="360" y="60" width="26" height="22" rx="3" fill="#2b2b2b"/><rect x="390" y="60" width="26" height="22" rx="3" fill="#2b2b2b"/><rect x="420" y="60" width="26" height="22" rx="3" fill="#2b2b2b"/><rect x="450" y="60" width="26" height="22" rx="3" fill="#2b2b2b"/><rect x="480" y="60" width="26" height="22" rx="3" fill="#2b2b2b"/><rect x="510" y="60" width="26" height="22" rx="3" fill="#2b2b2b"/><rect x="540" y="60" width="26" height="22" rx="3" fill="#2b2b2b"/><rect x="570" y="60" width="26" height="22" rx="3" fill="#2b2b2b"/><rect x="120" y="110" width="26" height="22" rx="3" fill="#2b2b2b"/><rect x="150" y="110" width="26" height="22" rx="3" fill="#2b2b2b"/><rect x="180" y="110" width="26" height="22" rx="3" fill="#2b2b2b"/><rect x="210" y="110" width="26" height="22" rx="3" fill="#2b2b2b"/><rect x="240" y="110" width="26" height="22" rx="3" fill="#2b2b2b"/><rect x="270" y="110" width="26" height="22" rx="3" fill="#2b2b2b"/><rect x="300" y="110" width="26" height="22" rx="3" fill="#2b2b2b"/><rect x="330" y="110" width="26" height="22" rx="3" fill="#2b2b2b"/>
+  <rect x="360" y="110" width="26" height="22" rx="3" fill="none" stroke="#d5cec6" stroke-width="1.2"/><rect x="390" y="110" width="26" height="22" rx="3" fill="none" stroke="#d5cec6" stroke-width="1.2"/><rect x="420" y="110" width="26" height="22" rx="3" fill="none" stroke="#d5cec6" stroke-width="1.2"/><rect x="450" y="110" width="26" height="22" rx="3" fill="none" stroke="#d5cec6" stroke-width="1.2"/><rect x="480" y="110" width="26" height="22" rx="3" fill="none" stroke="#d5cec6" stroke-width="1.2"/><rect x="510" y="110" width="26" height="22" rx="3" fill="none" stroke="#d5cec6" stroke-width="1.2"/><rect x="540" y="110" width="26" height="22" rx="3" fill="none" stroke="#d5cec6" stroke-width="1.2"/><rect x="570" y="110" width="26" height="22" rx="3" fill="none" stroke="#d5cec6" stroke-width="1.2"/><rect x="120" y="160" width="26" height="22" rx="3" fill="none" stroke="#d5cec6" stroke-width="1.2"/><rect x="150" y="160" width="26" height="22" rx="3" fill="none" stroke="#d5cec6" stroke-width="1.2"/><rect x="180" y="160" width="26" height="22" rx="3" fill="none" stroke="#d5cec6" stroke-width="1.2"/><rect x="210" y="160" width="26" height="22" rx="3" fill="none" stroke="#d5cec6" stroke-width="1.2"/><rect x="240" y="160" width="26" height="22" rx="3" fill="none" stroke="#d5cec6" stroke-width="1.2"/><rect x="270" y="160" width="26" height="22" rx="3" fill="none" stroke="#d5cec6" stroke-width="1.2"/><rect x="300" y="160" width="26" height="22" rx="3" fill="none" stroke="#d5cec6" stroke-width="1.2"/><rect x="330" y="160" width="26" height="22" rx="3" fill="none" stroke="#d5cec6" stroke-width="1.2"/><rect x="360" y="160" width="26" height="22" rx="3" fill="none" stroke="#d5cec6" stroke-width="1.2"/><rect x="390" y="160" width="26" height="22" rx="3" fill="none" stroke="#d5cec6" stroke-width="1.2"/><rect x="420" y="160" width="26" height="22" rx="3" fill="none" stroke="#d5cec6" stroke-width="1.2"/><rect x="450" y="160" width="26" height="22" rx="3" fill="none" stroke="#d5cec6" stroke-width="1.2"/><rect x="480" y="160" width="26" height="22" rx="3" fill="none" stroke="#d5cec6" stroke-width="1.2"/><rect x="510" y="160" width="26" height="22" rx="3" fill="none" stroke="#d5cec6" stroke-width="1.2"/><rect x="540" y="160" width="26" height="22" rx="3" fill="none" stroke="#d5cec6" stroke-width="1.2"/><rect x="570" y="160" width="26" height="22" rx="3" fill="none" stroke="#d5cec6" stroke-width="1.2"/>
+  <g font-size="13" fill="#6b6b6b">
+    <text x="604" y="77">16 位</text><text x="604" y="127">8 位</text><text x="604" y="177">0 位</text>
+  </g>
+  <g font-size="11.5" fill="#8c857c">
+    <text x="120" y="48">最高位</text>
+    <text x="598" y="48" text-anchor="end">最低位</text>
+  </g>
+  <g font-size="13" fill="#6b6b6b">
+    <rect x="120" y="200" width="14" height="14" rx="3" fill="#2b2b2b"/>
+    <text x="142" y="212">还能信的位</text>
+    <rect x="266" y="200" width="14" height="14" rx="3" fill="none" stroke="#d5cec6" stroke-width="1.2"/>
+    <text x="288" y="212">被条件数吃掉的位</text>
+  </g>
+</svg>
+<figcaption>图 2 ｜ 同为双精度十六位，条件数越高，可用位数越少。κ 达 10<sup>16</sup> 时，结果全部是舍入噪声。</figcaption>
+</figure>
+
+<div class="concl"><b>结论：</b>条件数衡量误差的放大倍数，不衡量误差本身的大小。</div>
+
+<details><summary>选看：κ 依赖哪个范数</summary>
+<div class="in">
+<p>κ(A) = ‖A‖ ‖A<sup>−1</sup>‖，两处必须用同一个范数。2-范数下它就是奇异值之比 σ<sub>max</sub>/σ<sub>min</sub>；1-范数是「列和的最大值」，∞-范数是「行和的最大值」，算 κ 时还要再乘上 A<sup>−1</sup> 的同一个范数。</p>
+<p>三种范数给出的 κ 最多相差 n 倍左右（n 是阶数），量级一致，但报告时必须注明用的是哪个范数，否则数字对不上。</p>
+<p>分量型条件数（componentwise condition number）按每个元素各自的相对扰动来算。数据只有少数元素不准时，它比范数型更贴切；同一个矩阵按两种口径算，结果能差几个数量级。范数型问「最坏的元素扰动有多大」，分量型问「实际被扰动的那几个元素会放大多少」。</p>
+</div>
+</details>
+
+<h2 id="s5"><span class="n">05</span>向后稳定：算法保证了什么，又没保证什么</h2>
+
+<p><b>向后稳定</b>（backward stable）的定义分三步：</p>
+<ol class="steps">
+<li>算法输出 x̂。</li>
+<li>判断是否存在小扰动 ΔA、Δb，使 (A + ΔA)x̂ = b + Δb 精确成立。</li>
+<li>若存在，且 ΔA、Δb 与机器精度（machine epsilon，即 1 与比它大的最小浮点数之差）同量级，则算法向后稳定。</li>
+</ol>
+<p>误差因此分三段：</p>
+<ol class="steps">
+<li>算法把向后误差（backward error）压到机器精度量级。</li>
+<li>问题以 κ 倍把向后误差放大成前向误差（forward error）。</li>
+<li>前向误差 ≲ κ × 向后误差。</li>
+</ol>
+
+<figure>
+<svg viewBox="0 0 640 240" width="100%" role="img" aria-label="误差三段链：输入扰动经算法压成向后误差，经问题放大为前向误差">
+  <rect x="0" y="0" width="640" height="240" fill="#fff"/>
+  <defs><marker id="ai" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#2b2b2b"/></marker></defs>
+  <g fill="#fff" stroke="#2b2b2b" stroke-width="1.4">
+    <rect x="20" y="52" width="158" height="82" rx="5"/>
+    <rect x="238" y="52" width="166" height="82" rx="5"/>
+  </g>
+  <rect x="462" y="52" width="158" height="82" rx="5" fill="#fff" stroke="#a33a28" stroke-width="1.6"/>
+  <line x1="180" y1="93" x2="230" y2="93" stroke="#2b2b2b" stroke-width="1.4" marker-end="url(#ai)"/>
+  <line x1="406" y1="93" x2="456" y2="93" stroke="#2b2b2b" stroke-width="1.4" marker-end="url(#ai)"/>
+  <g font-size="13" fill="#6b6b6b" text-anchor="middle">
+    <text x="205" y="38">算法</text><text x="431" y="38">问题</text>
+  </g>
+  <g font-size="12.5" fill="#6b6b6b" text-anchor="middle">
+    <text x="205" y="158">压到机器精度量级</text><text x="431" y="158">放大 κ 倍</text>
+  </g>
+  <g text-anchor="middle">
+    <text x="99" y="86" font-size="14.5" fill="#2b2b2b">输入扰动 δb</text>
+    <text x="99" y="110" font-size="12" fill="#6b6b6b">（数据误差）</text>
+    <text x="321" y="88" font-size="19" fill="#2b2b2b">x̂</text>
+    <text x="321" y="110" font-size="12" fill="#6b6b6b">邻近问题的精确解</text>
+    <text x="541" y="86" font-size="14.5" fill="#a33a28">前向误差</text>
+    <text x="541" y="110" font-size="12" fill="#6b6b6b">（你得到的结果）</text>
+  </g>
+  <text x="320" y="214" font-size="16" fill="#2b2b2b" text-anchor="middle">前向误差 ≲ κ × 向后误差</text>
+</svg>
+<figcaption>图 3 ｜ 算法负责第一段，问题负责第二段。第一段缩得再小，第二段照样放大 κ 倍。</figcaption>
+</figure>
+<p>稳定算法在病态问题上给出差的答案：自身误差已压到最小，剩余部分来自问题。</p>
+
+<table>
+<tr><th></th><th>问题的条件（conditioning）</th><th>算法的稳定性（stability）</th></tr>
+<tr><td>属于谁</td><td>问题本身</td><td>算法</td></tr>
+<tr><td>能否改变</td><td>不能，除非换问题或换表述</td><td>能，换算法即可</td></tr>
+<tr><td>对应数值</td><td>κ</td><td>向后误差，通常 ≲ 几倍机器精度</td></tr>
+</table>
+
+<div class="concl"><b>结论：</b>稳定保证解的是邻近的问题，不保证原问题可解。</div>
+
+<details><summary>选看：特征值和根各自的条件数</summary>
+<div class="in">
+<p>特征值（eigenvalue，满足 Ax = λx 的 λ）的条件数是 1/|y<sup>T</sup>x|，其中 x、y 是 λ 对应的右、左特征向量，都归一化为单位长度。y<sup>T</sup>x 量的是两者的「重合度」：对称矩阵左右特征向量相同，y<sup>T</sup>x = 1，条件数为 1；非对称矩阵两者可以近乎正交，分母接近 0，条件数极大。</p>
+<p>所以特征值间距大不等于安全。非正规（non-normal）矩阵即使特征值分得很开，只要左、右特征向量近乎正交，单个特征值仍可能对扰动极敏感。决定敏感度的是这对特征向量的夹角，不是间距。</p>
+<p>求根也一样，但公式里不只有导数：系数 c<sub>k</sub> 扰动 δc<sub>k</sub> 时，根移动约 δc<sub>k</sub>·α<sup>k</sup>/|p′(α)|。分子随 |α| 变大，分母在整根中间最小——对 ∏(x−k)，|p′(k)| = (k−1)!(20−k)!，前后对称，10、11 附近最小。两头一拉扯，Wilkinson 多项式最敏感的是 14 到 17 一带的根，它们跑得最远、成对进入复平面；20 的分子虽大，分母也大，只挪到 20.85；1 到 5 的分子接近 1，几乎不动——图 1 就是这个形状。</p>
+</div>
+</details>
+
+<h2 id="s6"><span class="n">06</span>病态的实质：约束不独立，不是数太大</h2>
+
+<p><b>良态</b>（well-conditioned）与<b>病态</b>（ill-conditioned）：</p>
+<ol class="steps">
+<li>良态：约束互相独立，每条新约束提供一个新方向的信息。</li>
+<li>病态：约束近似重复，名义上多条，独立方向不足。</li>
+</ol>
+<p>几何上对应两条近似平行的直线：</p>
+<ol class="steps">
+<li>第一条线给出一个约束。</li>
+<li>第二条线本应给出另一个方向。</li>
+<li>它与第一条近似平行，给出的仍是同一方向。</li>
+<li>两个方向退化为一个，剩余方向数据看不见，交点位置不稳定。</li>
+</ol>
+
+<figure>
+<svg viewBox="0 0 640 400" width="100%" role="img" aria-label="两条几乎平行的直线，数据微动后交点大幅移动">
+  <defs><marker id="aa" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#a33a28"/></marker></defs>
+  <rect x="0" y="0" width="640" height="400" fill="#fff"/>
+  <g stroke="#f0eae4" stroke-width="1">
+    <line x1="206.5" y1="54" x2="206.5" y2="330"/><line x1="337" y1="54" x2="337" y2="330"/><line x1="467.5" y1="54" x2="467.5" y2="330"/>
+    <line x1="76" y1="251.1" x2="598" y2="251.1"/><line x1="76" y1="172.3" x2="598" y2="172.3"/><line x1="76" y1="93.4" x2="598" y2="93.4"/>
+  </g>
+  <g stroke="#9a948c" stroke-width="1">
+    <line x1="76" y1="330" x2="598" y2="330"/><line x1="76" y1="54" x2="76" y2="330"/>
+    <line x1="206.5" y1="330" x2="206.5" y2="336"/><line x1="337" y1="330" x2="337" y2="336"/>
+    <line x1="467.5" y1="330" x2="467.5" y2="336"/><line x1="598" y1="330" x2="598" y2="336"/>
+    <line x1="70" y1="251.1" x2="76" y2="251.1"/><line x1="70" y1="172.3" x2="76" y2="172.3"/><line x1="70" y1="93.4" x2="76" y2="93.4"/>
+  </g>
+  <g font-size="12" fill="#6b6b6b" text-anchor="middle">
+    <text x="206.5" y="352">2</text><text x="337" y="352">4</text><text x="467.5" y="352">6</text><text x="598" y="352">8</text>
+  </g>
+  <g font-size="12" fill="#6b6b6b" text-anchor="end">
+    <text x="65" y="255">2</text><text x="65" y="176">4</text><text x="65" y="97">6</text>
+  </g>
+  <text x="612" y="350" font-size="13" fill="#6b6b6b">x</text>
+  <text x="65" y="44" font-size="13" fill="#6b6b6b" text-anchor="end">y</text>
+  <line x1="76" y1="266.9" x2="598" y2="77.6" stroke="#2b2b2b" stroke-width="2.2"/>
+  <line x1="76" y1="259.0" x2="598" y2="85.5" stroke="#8c857c" stroke-width="1.8"/>
+  <line x1="76" y1="255.1" x2="598" y2="81.6" stroke="#a33a28" stroke-width="2.2" stroke-dasharray="8 5"/>
+  <line x1="341" y1="171" x2="462" y2="127" stroke="#a33a28" stroke-width="6" opacity="0.35" stroke-linecap="round"/>
+  <line x1="430" y1="140" x2="462" y2="127" stroke="#a33a28" stroke-width="2" marker-end="url(#aa)"/>
+  <circle cx="337" cy="172.3" r="5.5" fill="#2b2b2b"/>
+  <circle cx="467.5" cy="125.0" r="5.5" fill="#a33a28"/>
+  <text x="337" y="222" font-size="14" fill="#2b2b2b" text-anchor="middle">解 (4, 4)</text>
+  <text x="467.5" y="96" font-size="14" fill="#a33a28" text-anchor="middle">新解 (6, 5.2)</text>
+  <g font-size="13">
+    <line x1="92" y1="72" x2="122" y2="72" stroke="#2b2b2b" stroke-width="2.2"/>
+    <text x="132" y="77" fill="#2b2b2b">L₁：y = 0.6x + 1.6</text>
+    <line x1="92" y1="96" x2="122" y2="96" stroke="#8c857c" stroke-width="1.8"/>
+    <text x="132" y="101" fill="#2b2b2b">L₂：y = 0.55x + 1.8</text>
+    <line x1="92" y1="120" x2="122" y2="120" stroke="#a33a28" stroke-width="2.2" stroke-dasharray="8 5"/>
+    <text x="132" y="125" fill="#a33a28">L₂′：y = 0.55x + 1.9（截距 +5.6%）</text>
+  </g>
+</svg>
+<figcaption>图 4 ｜ L₂ 的截距由 1.80 抬到 1.90（+5.6%），解沿 L₁ 从 (4, 4) 滑到 (6, 5.2)：数据动 5.6%，解动 41%。两条约束的夹角只有约 2°，扰动被放大到解上。</figcaption>
+</figure>
+<p>矩阵语言：近秩亏（near rank deficiency）。最小奇异值（singular value，矩阵在各方向上的拉伸倍数）σ<sub>min</sub> 很小，存在一个方向矩阵几乎不作用，该方向的分量无法准确测出。</p>
+
+<figure>
+<svg viewBox="0 0 640 245" width="100%" role="img" aria-label="单位圆经矩阵映射成椭球，κ 是椭球的扁度">
+  <defs><marker id="ak" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#2b2b2b"/></marker>
+  <marker id="akr" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#a33a28"/></marker></defs>
+  <rect x="0" y="0" width="640" height="245" fill="#fff"/>
+  <circle cx="96" cy="112" r="45" fill="none" stroke="#2b2b2b" stroke-width="1.8"/>
+  <g stroke="#c9c3bb" stroke-width="1" stroke-dasharray="5 4">
+    <line x1="51" y1="112" x2="141" y2="112"/><line x1="96" y1="67" x2="96" y2="157"/>
+  </g>
+  <line x1="148" y1="112" x2="188" y2="112" stroke="#2b2b2b" stroke-width="1.6" marker-end="url(#ak)"/>
+  <text x="168" y="98" font-size="14" fill="#2b2b2b" text-anchor="middle">A</text>
+  <ellipse cx="330" cy="112" rx="85" ry="27" fill="none" stroke="#2b2b2b" stroke-width="1.8"/>
+  <g stroke="#c9c3bb" stroke-width="1" stroke-dasharray="5 4">
+    <line x1="245" y1="112" x2="415" y2="112"/><line x1="330" y1="85" x2="330" y2="139"/>
+  </g>
+  <line x1="330" y1="112" x2="406" y2="112" stroke="#a33a28" stroke-width="1.8" marker-end="url(#akr)"/>
+  <line x1="330" y1="112" x2="330" y2="94" stroke="#a33a28" stroke-width="1.8" marker-end="url(#akr)"/>
+  <text x="421" y="117" font-size="14" fill="#a33a28">σ<tspan dy="3" font-size="10">max</tspan></text>
+  <text x="324" y="78" font-size="14" fill="#a33a28" text-anchor="end">σ<tspan dy="3" font-size="10">min</tspan></text>
+  <line x1="442" y1="112" x2="480" y2="112" stroke="#2b2b2b" stroke-width="1.6" marker-end="url(#ak)"/>
+  <text x="461" y="140" font-size="12.5" fill="#6b6b6b" text-anchor="middle">σ<tspan dy="3" font-size="9">min</tspan><tspan dy="-3"> → 0</tspan></text>
+  <ellipse cx="560" cy="112" rx="55" ry="3" fill="none" stroke="#a33a28" stroke-width="1.8"/>
+  <g font-size="12.5" fill="#6b6b6b" text-anchor="middle">
+    <text x="96" y="186">单位圆：各方向等长</text>
+    <text x="330" y="186">A 把它拉成椭球</text>
+    <text x="560" y="152">压成一条线</text>
+  </g>
+  <text x="320" y="222" font-size="16" fill="#2b2b2b" text-anchor="middle">κ = σ<tspan dy="3" font-size="11">max</tspan><tspan dy="-3"> ÷ σ</tspan><tspan dy="3" font-size="11">min</tspan></text>
+</svg>
+<figcaption>图 5 ｜ 输入的微小扰动在每个方向上等长（左），经过矩阵后被拉成不同长度（中）。σ<sub>min</sub> 趋于 0 时，那个方向被压扁，κ 趋于无穷（右）。</figcaption>
+</figure>
+<p>病态与元素大小无关：10<sup>8</sup>I 的 κ = 1；Hilbert 矩阵（Hilbert matrix）元素为 1/2、1/3，n = 12 时 κ 达 10<sup>16</sup> 量级<sup>[6]</sup>，双精度下不可解。</p>
+
+<div class="concl"><b>结论：</b>病态是约束不独立，不是数值太大。</div>
+
+<details><summary>选看：SVD 与病态</summary>
+<div class="in">
+<p>任何矩阵都能分解成「旋转 → 沿坐标轴拉伸 → 再旋转」：A = UΣV<sup>T</sup>。奇异值 σ 就是各方向的拉伸倍数，最大 σ<sub>max</sub>、最小 σ<sub>min</sub>。</p>
+<p>求逆是同一件事倒过来：A<sup>−1</sup> = VΣ<sup>−1</sup>U<sup>T</sup>，原来被拉长 σ 倍的方向，现在要除以 σ。误差在 A 和 A<sup>−1</sup> 之间来回一趟，最坏放大 σ<sub>max</sub>/σ<sub>min</sub> 倍——这就是 κ。</p>
+<p>例子：A = diag(10<sup>3</sup>, 1)，b = (10<sup>3</sup>, 0) 时解是 (1, 0)。把 b 的第二个分量从 0 改成 1，相对变化只有千分之一，解却变成 (1, 1)——第二个分量从 0 跳到 1。短轴方向几乎量不出来的那点信息，到解里被放大了三个数量级。</p>
+<p>几何上，κ 就是单位球被 A 拉成的椭球的扁度：越扁，求逆时误差放大越多。一条轴被压到近零，等于少了一个独立方向，与第 6 节说的「约束近似重复」是同一件事。</p>
+</div>
+</details>
+
+<details><summary>选看：Hilbert 矩阵的条件数（本机精确计算）</summary>
+<div class="in">
+<p>Hilbert 矩阵 H<sub>ij</sub> = 1/(i+j−1)。用有理数精确求逆，计算 1-范数条件数<sup>[6]</sup>：</p>
+<table>
+<tr><th>n</th><th>κ₁</th><th>log₁₀κ₁</th></tr>
+<tr><td>8</td><td>3.39×10<sup>10</sup></td><td>10.53</td></tr>
+<tr><td>10</td><td>3.54×10<sup>13</sup></td><td>13.55</td></tr>
+<tr><td>12</td><td>4.12×10<sup>16</sup></td><td>16.61</td></tr>
+</table>
+<p>n = 12 时 log<sub>10</sub>κ 超过 16，双精度下没有一位有效数字。矩阵元素最大为 1。</p>
+<p>元素都小而平滑，看着无害，为什么这么糟？因为相邻两行几乎线性相关——这正好是第 6 节说的「约束近似重复」。从表里也能看出增长速度：n 每加 2，log<sub>10</sub>κ 涨约 3，可用位数就少约 3 位。</p>
+</div>
+</details>
+
+<details><summary>选看：正则化用一点偏差换稳定</summary>
+<div class="in">
+<p>病态问题既换不了数据、也换不了表述时，通常加一个惩罚项：min<sub>x</sub> ‖Ax − b‖² + λ‖x‖²，解为 x<sub>λ</sub> = (A<sup>T</sup>A + λI)<sup>−1</sup>A<sup>T</sup>b。</p>
+<p>λ &gt; 0 把 A<sup>T</sup>A 的最小特征值从 σ<sub>min</sub>² 抬到 σ<sub>min</sub>² + λ，有效条件数从 σ<sub>max</sub>²/σ<sub>min</sub>² 降到 (σ<sub>max</sub>² + λ)/(σ<sub>min</sub>² + λ)。λ 越大，噪声被压得越狠。</p>
+<p>代价是偏差：λ 越大，解越被拉向「短」的方向，离开真解越远。选 λ 就是在噪声放大与偏差之间做交换。第 8 节检修表里「正则化」那一条，说的正是这件事；矩阵补全里的低秩近似，也是把精确约束换成了带惩罚的近似。</p>
+</div>
+</details>
+
+<h2 id="s7"><span class="n">07</span>矩阵补全：换观测模式，就是换问题</h2>
+
+<p><b>矩阵补全</b>（matrix completion）：</p>
+<ol class="steps">
+<li>已知矩阵的部分元素。被观测位置构成观测模式（observation pattern）。本文讨论确定模式，不是随机抽样。</li>
+<li>假设矩阵低秩（low rank）：行之间高度相关，信息冗余。</li>
+<li>目标：补出未观测的元素。</li>
+</ol>
+<p>问：给定观测模式，解是否唯一？</p>
+
+<figure>
+<svg viewBox="0 0 640 380" width="100%" role="img" aria-label="矩阵补全：第 5 行整行缺失时，补全不唯一">
+  <defs><marker id="am" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#8c857c"/></marker></defs>
+  <rect x="0" y="0" width="640" height="380" fill="#fff"/>
+  <g font-size="13.5" fill="#2b2b2b">
+    <text x="124" y="86" text-anchor="middle">观测到的矩阵</text>
+    <text x="468" y="26" text-anchor="middle">补全 A：第 5 行 = 5j</text>
+    <text x="468" y="186" text-anchor="middle">补全 B：第 5 行 = 10j</text>
+  </g>
+  <rect x="52" y="104" width="144" height="144" fill="#fff" stroke="#dcd7d1"/><rect x="52" y="104" width="24" height="24" fill="#f6f1ec" stroke="#efe9e3"/><text x="64" y="120" font-size="11.5" fill="#2b2b2b" text-anchor="middle">1</text><rect x="76" y="104" width="24" height="24" fill="#f6f1ec" stroke="#efe9e3"/><text x="88" y="120" font-size="11.5" fill="#2b2b2b" text-anchor="middle">2</text><rect x="100" y="104" width="24" height="24" fill="#f6f1ec" stroke="#efe9e3"/><text x="112" y="120" font-size="11.5" fill="#2b2b2b" text-anchor="middle">3</text><rect x="124" y="104" width="24" height="24" fill="#f6f1ec" stroke="#efe9e3"/><text x="136" y="120" font-size="11.5" fill="#2b2b2b" text-anchor="middle">4</text><rect x="148" y="104" width="24" height="24" fill="#f6f1ec" stroke="#efe9e3"/><text x="160" y="120" font-size="11.5" fill="#2b2b2b" text-anchor="middle">5</text><rect x="172" y="104" width="24" height="24" fill="#f6f1ec" stroke="#efe9e3"/><text x="184" y="120" font-size="11.5" fill="#2b2b2b" text-anchor="middle">6</text><rect x="52" y="128" width="24" height="24" fill="#f6f1ec" stroke="#efe9e3"/><text x="64" y="144" font-size="11.5" fill="#2b2b2b" text-anchor="middle">2</text><rect x="76" y="128" width="24" height="24" fill="#f6f1ec" stroke="#efe9e3"/><text x="88" y="144" font-size="11.5" fill="#2b2b2b" text-anchor="middle">4</text><rect x="100" y="128" width="24" height="24" fill="#f6f1ec" stroke="#efe9e3"/><text x="112" y="144" font-size="11.5" fill="#2b2b2b" text-anchor="middle">6</text><rect x="124" y="128" width="24" height="24" fill="#f6f1ec" stroke="#efe9e3"/><text x="136" y="144" font-size="11.5" fill="#2b2b2b" text-anchor="middle">8</text><rect x="148" y="128" width="24" height="24" fill="#f6f1ec" stroke="#efe9e3"/><text x="160" y="144" font-size="11.5" fill="#2b2b2b" text-anchor="middle">10</text><rect x="172" y="128" width="24" height="24" fill="#f6f1ec" stroke="#efe9e3"/><text x="184" y="144" font-size="11.5" fill="#2b2b2b" text-anchor="middle">12</text><rect x="52" y="152" width="24" height="24" fill="#f6f1ec" stroke="#efe9e3"/><text x="64" y="168" font-size="11.5" fill="#2b2b2b" text-anchor="middle">3</text><rect x="76" y="152" width="24" height="24" fill="#f6f1ec" stroke="#efe9e3"/><text x="88" y="168" font-size="11.5" fill="#2b2b2b" text-anchor="middle">6</text><rect x="100" y="152" width="24" height="24" fill="#f6f1ec" stroke="#efe9e3"/><text x="112" y="168" font-size="11.5" fill="#2b2b2b" text-anchor="middle">9</text><rect x="124" y="152" width="24" height="24" fill="#f6f1ec" stroke="#efe9e3"/><text x="136" y="168" font-size="11.5" fill="#2b2b2b" text-anchor="middle">12</text><rect x="148" y="152" width="24" height="24" fill="#f6f1ec" stroke="#efe9e3"/><text x="160" y="168" font-size="11.5" fill="#2b2b2b" text-anchor="middle">15</text><rect x="172" y="152" width="24" height="24" fill="#f6f1ec" stroke="#efe9e3"/><text x="184" y="168" font-size="11.5" fill="#2b2b2b" text-anchor="middle">18</text><rect x="52" y="176" width="24" height="24" fill="#f6f1ec" stroke="#efe9e3"/><text x="64" y="192" font-size="11.5" fill="#2b2b2b" text-anchor="middle">4</text><rect x="76" y="176" width="24" height="24" fill="#f6f1ec" stroke="#efe9e3"/><text x="88" y="192" font-size="11.5" fill="#2b2b2b" text-anchor="middle">8</text><rect x="100" y="176" width="24" height="24" fill="#f6f1ec" stroke="#efe9e3"/><text x="112" y="192" font-size="11.5" fill="#2b2b2b" text-anchor="middle">12</text><rect x="124" y="176" width="24" height="24" fill="#f6f1ec" stroke="#efe9e3"/><text x="136" y="192" font-size="11.5" fill="#2b2b2b" text-anchor="middle">16</text><rect x="148" y="176" width="24" height="24" fill="#f6f1ec" stroke="#efe9e3"/><text x="160" y="192" font-size="11.5" fill="#2b2b2b" text-anchor="middle">20</text><rect x="172" y="176" width="24" height="24" fill="#f6f1ec" stroke="#efe9e3"/><text x="184" y="192" font-size="11.5" fill="#2b2b2b" text-anchor="middle">24</text><rect x="52" y="200" width="24" height="24" fill="#f7e6e1" stroke="#efe9e3"/><text x="64" y="216" font-size="12" fill="#6b6b6b" text-anchor="middle">?</text><rect x="76" y="200" width="24" height="24" fill="#f7e6e1" stroke="#efe9e3"/><text x="88" y="216" font-size="12" fill="#6b6b6b" text-anchor="middle">?</text><rect x="100" y="200" width="24" height="24" fill="#f7e6e1" stroke="#efe9e3"/><text x="112" y="216" font-size="12" fill="#6b6b6b" text-anchor="middle">?</text><rect x="124" y="200" width="24" height="24" fill="#f7e6e1" stroke="#efe9e3"/><text x="136" y="216" font-size="12" fill="#6b6b6b" text-anchor="middle">?</text><rect x="148" y="200" width="24" height="24" fill="#f7e6e1" stroke="#efe9e3"/><text x="160" y="216" font-size="12" fill="#6b6b6b" text-anchor="middle">?</text><rect x="172" y="200" width="24" height="24" fill="#f7e6e1" stroke="#efe9e3"/><text x="184" y="216" font-size="12" fill="#6b6b6b" text-anchor="middle">?</text><rect x="52" y="224" width="24" height="24" fill="#f6f1ec" stroke="#efe9e3"/><text x="64" y="240" font-size="11.5" fill="#2b2b2b" text-anchor="middle">6</text><rect x="76" y="224" width="24" height="24" fill="#f6f1ec" stroke="#efe9e3"/><text x="88" y="240" font-size="11.5" fill="#2b2b2b" text-anchor="middle">12</text><rect x="100" y="224" width="24" height="24" fill="#f6f1ec" stroke="#efe9e3"/><text x="112" y="240" font-size="11.5" fill="#2b2b2b" text-anchor="middle">18</text><rect x="124" y="224" width="24" height="24" fill="#f6f1ec" stroke="#efe9e3"/><text x="136" y="240" font-size="11.5" fill="#2b2b2b" text-anchor="middle">24</text><rect x="148" y="224" width="24" height="24" fill="#f6f1ec" stroke="#efe9e3"/><text x="160" y="240" font-size="11.5" fill="#2b2b2b" text-anchor="middle">30</text><rect x="172" y="224" width="24" height="24" fill="#f6f1ec" stroke="#efe9e3"/><text x="184" y="240" font-size="11.5" fill="#2b2b2b" text-anchor="middle">36</text>
+  <rect x="396" y="44" width="144" height="144" fill="#fff" stroke="#dcd7d1"/><rect x="396" y="44" width="24" height="24" fill="#f6f1ec" stroke="#efe9e3"/><text x="408" y="60" font-size="11.5" fill="#2b2b2b" text-anchor="middle">1</text><rect x="420" y="44" width="24" height="24" fill="#f6f1ec" stroke="#efe9e3"/><text x="432" y="60" font-size="11.5" fill="#2b2b2b" text-anchor="middle">2</text><rect x="444" y="44" width="24" height="24" fill="#f6f1ec" stroke="#efe9e3"/><text x="456" y="60" font-size="11.5" fill="#2b2b2b" text-anchor="middle">3</text><rect x="468" y="44" width="24" height="24" fill="#f6f1ec" stroke="#efe9e3"/><text x="480" y="60" font-size="11.5" fill="#2b2b2b" text-anchor="middle">4</text><rect x="492" y="44" width="24" height="24" fill="#f6f1ec" stroke="#efe9e3"/><text x="504" y="60" font-size="11.5" fill="#2b2b2b" text-anchor="middle">5</text><rect x="516" y="44" width="24" height="24" fill="#f6f1ec" stroke="#efe9e3"/><text x="528" y="60" font-size="11.5" fill="#2b2b2b" text-anchor="middle">6</text><rect x="396" y="68" width="24" height="24" fill="#f6f1ec" stroke="#efe9e3"/><text x="408" y="84" font-size="11.5" fill="#2b2b2b" text-anchor="middle">2</text><rect x="420" y="68" width="24" height="24" fill="#f6f1ec" stroke="#efe9e3"/><text x="432" y="84" font-size="11.5" fill="#2b2b2b" text-anchor="middle">4</text><rect x="444" y="68" width="24" height="24" fill="#f6f1ec" stroke="#efe9e3"/><text x="456" y="84" font-size="11.5" fill="#2b2b2b" text-anchor="middle">6</text><rect x="468" y="68" width="24" height="24" fill="#f6f1ec" stroke="#efe9e3"/><text x="480" y="84" font-size="11.5" fill="#2b2b2b" text-anchor="middle">8</text><rect x="492" y="68" width="24" height="24" fill="#f6f1ec" stroke="#efe9e3"/><text x="504" y="84" font-size="11.5" fill="#2b2b2b" text-anchor="middle">10</text><rect x="516" y="68" width="24" height="24" fill="#f6f1ec" stroke="#efe9e3"/><text x="528" y="84" font-size="11.5" fill="#2b2b2b" text-anchor="middle">12</text><rect x="396" y="92" width="24" height="24" fill="#f6f1ec" stroke="#efe9e3"/><text x="408" y="108" font-size="11.5" fill="#2b2b2b" text-anchor="middle">3</text><rect x="420" y="92" width="24" height="24" fill="#f6f1ec" stroke="#efe9e3"/><text x="432" y="108" font-size="11.5" fill="#2b2b2b" text-anchor="middle">6</text><rect x="444" y="92" width="24" height="24" fill="#f6f1ec" stroke="#efe9e3"/><text x="456" y="108" font-size="11.5" fill="#2b2b2b" text-anchor="middle">9</text><rect x="468" y="92" width="24" height="24" fill="#f6f1ec" stroke="#efe9e3"/><text x="480" y="108" font-size="11.5" fill="#2b2b2b" text-anchor="middle">12</text><rect x="492" y="92" width="24" height="24" fill="#f6f1ec" stroke="#efe9e3"/><text x="504" y="108" font-size="11.5" fill="#2b2b2b" text-anchor="middle">15</text><rect x="516" y="92" width="24" height="24" fill="#f6f1ec" stroke="#efe9e3"/><text x="528" y="108" font-size="11.5" fill="#2b2b2b" text-anchor="middle">18</text><rect x="396" y="116" width="24" height="24" fill="#f6f1ec" stroke="#efe9e3"/><text x="408" y="132" font-size="11.5" fill="#2b2b2b" text-anchor="middle">4</text><rect x="420" y="116" width="24" height="24" fill="#f6f1ec" stroke="#efe9e3"/><text x="432" y="132" font-size="11.5" fill="#2b2b2b" text-anchor="middle">8</text><rect x="444" y="116" width="24" height="24" fill="#f6f1ec" stroke="#efe9e3"/><text x="456" y="132" font-size="11.5" fill="#2b2b2b" text-anchor="middle">12</text><rect x="468" y="116" width="24" height="24" fill="#f6f1ec" stroke="#efe9e3"/><text x="480" y="132" font-size="11.5" fill="#2b2b2b" text-anchor="middle">16</text><rect x="492" y="116" width="24" height="24" fill="#f6f1ec" stroke="#efe9e3"/><text x="504" y="132" font-size="11.5" fill="#2b2b2b" text-anchor="middle">20</text><rect x="516" y="116" width="24" height="24" fill="#f6f1ec" stroke="#efe9e3"/><text x="528" y="132" font-size="11.5" fill="#2b2b2b" text-anchor="middle">24</text><rect x="396" y="140" width="24" height="24" fill="#f7e6e1" stroke="#efe9e3"/><text x="408" y="156" font-size="11.5" fill="#a33a28" text-anchor="middle">5</text><rect x="420" y="140" width="24" height="24" fill="#f7e6e1" stroke="#efe9e3"/><text x="432" y="156" font-size="11.5" fill="#a33a28" text-anchor="middle">10</text><rect x="444" y="140" width="24" height="24" fill="#f7e6e1" stroke="#efe9e3"/><text x="456" y="156" font-size="11.5" fill="#a33a28" text-anchor="middle">15</text><rect x="468" y="140" width="24" height="24" fill="#f7e6e1" stroke="#efe9e3"/><text x="480" y="156" font-size="11.5" fill="#a33a28" text-anchor="middle">20</text><rect x="492" y="140" width="24" height="24" fill="#f7e6e1" stroke="#efe9e3"/><text x="504" y="156" font-size="11.5" fill="#a33a28" text-anchor="middle">25</text><rect x="516" y="140" width="24" height="24" fill="#f7e6e1" stroke="#efe9e3"/><text x="528" y="156" font-size="11.5" fill="#a33a28" text-anchor="middle">30</text><rect x="396" y="164" width="24" height="24" fill="#f6f1ec" stroke="#efe9e3"/><text x="408" y="180" font-size="11.5" fill="#2b2b2b" text-anchor="middle">6</text><rect x="420" y="164" width="24" height="24" fill="#f6f1ec" stroke="#efe9e3"/><text x="432" y="180" font-size="11.5" fill="#2b2b2b" text-anchor="middle">12</text><rect x="444" y="164" width="24" height="24" fill="#f6f1ec" stroke="#efe9e3"/><text x="456" y="180" font-size="11.5" fill="#2b2b2b" text-anchor="middle">18</text><rect x="468" y="164" width="24" height="24" fill="#f6f1ec" stroke="#efe9e3"/><text x="480" y="180" font-size="11.5" fill="#2b2b2b" text-anchor="middle">24</text><rect x="492" y="164" width="24" height="24" fill="#f6f1ec" stroke="#efe9e3"/><text x="504" y="180" font-size="11.5" fill="#2b2b2b" text-anchor="middle">30</text><rect x="516" y="164" width="24" height="24" fill="#f6f1ec" stroke="#efe9e3"/><text x="528" y="180" font-size="11.5" fill="#2b2b2b" text-anchor="middle">36</text>
+  <rect x="396" y="204" width="144" height="144" fill="#fff" stroke="#dcd7d1"/><rect x="396" y="204" width="24" height="24" fill="#f6f1ec" stroke="#efe9e3"/><text x="408" y="220" font-size="11.5" fill="#2b2b2b" text-anchor="middle">1</text><rect x="420" y="204" width="24" height="24" fill="#f6f1ec" stroke="#efe9e3"/><text x="432" y="220" font-size="11.5" fill="#2b2b2b" text-anchor="middle">2</text><rect x="444" y="204" width="24" height="24" fill="#f6f1ec" stroke="#efe9e3"/><text x="456" y="220" font-size="11.5" fill="#2b2b2b" text-anchor="middle">3</text><rect x="468" y="204" width="24" height="24" fill="#f6f1ec" stroke="#efe9e3"/><text x="480" y="220" font-size="11.5" fill="#2b2b2b" text-anchor="middle">4</text><rect x="492" y="204" width="24" height="24" fill="#f6f1ec" stroke="#efe9e3"/><text x="504" y="220" font-size="11.5" fill="#2b2b2b" text-anchor="middle">5</text><rect x="516" y="204" width="24" height="24" fill="#f6f1ec" stroke="#efe9e3"/><text x="528" y="220" font-size="11.5" fill="#2b2b2b" text-anchor="middle">6</text><rect x="396" y="228" width="24" height="24" fill="#f6f1ec" stroke="#efe9e3"/><text x="408" y="244" font-size="11.5" fill="#2b2b2b" text-anchor="middle">2</text><rect x="420" y="228" width="24" height="24" fill="#f6f1ec" stroke="#efe9e3"/><text x="432" y="244" font-size="11.5" fill="#2b2b2b" text-anchor="middle">4</text><rect x="444" y="228" width="24" height="24" fill="#f6f1ec" stroke="#efe9e3"/><text x="456" y="244" font-size="11.5" fill="#2b2b2b" text-anchor="middle">6</text><rect x="468" y="228" width="24" height="24" fill="#f6f1ec" stroke="#efe9e3"/><text x="480" y="244" font-size="11.5" fill="#2b2b2b" text-anchor="middle">8</text><rect x="492" y="228" width="24" height="24" fill="#f6f1ec" stroke="#efe9e3"/><text x="504" y="244" font-size="11.5" fill="#2b2b2b" text-anchor="middle">10</text><rect x="516" y="228" width="24" height="24" fill="#f6f1ec" stroke="#efe9e3"/><text x="528" y="244" font-size="11.5" fill="#2b2b2b" text-anchor="middle">12</text><rect x="396" y="252" width="24" height="24" fill="#f6f1ec" stroke="#efe9e3"/><text x="408" y="268" font-size="11.5" fill="#2b2b2b" text-anchor="middle">3</text><rect x="420" y="252" width="24" height="24" fill="#f6f1ec" stroke="#efe9e3"/><text x="432" y="268" font-size="11.5" fill="#2b2b2b" text-anchor="middle">6</text><rect x="444" y="252" width="24" height="24" fill="#f6f1ec" stroke="#efe9e3"/><text x="456" y="268" font-size="11.5" fill="#2b2b2b" text-anchor="middle">9</text><rect x="468" y="252" width="24" height="24" fill="#f6f1ec" stroke="#efe9e3"/><text x="480" y="268" font-size="11.5" fill="#2b2b2b" text-anchor="middle">12</text><rect x="492" y="252" width="24" height="24" fill="#f6f1ec" stroke="#efe9e3"/><text x="504" y="268" font-size="11.5" fill="#2b2b2b" text-anchor="middle">15</text><rect x="516" y="252" width="24" height="24" fill="#f6f1ec" stroke="#efe9e3"/><text x="528" y="268" font-size="11.5" fill="#2b2b2b" text-anchor="middle">18</text><rect x="396" y="276" width="24" height="24" fill="#f6f1ec" stroke="#efe9e3"/><text x="408" y="292" font-size="11.5" fill="#2b2b2b" text-anchor="middle">4</text><rect x="420" y="276" width="24" height="24" fill="#f6f1ec" stroke="#efe9e3"/><text x="432" y="292" font-size="11.5" fill="#2b2b2b" text-anchor="middle">8</text><rect x="444" y="276" width="24" height="24" fill="#f6f1ec" stroke="#efe9e3"/><text x="456" y="292" font-size="11.5" fill="#2b2b2b" text-anchor="middle">12</text><rect x="468" y="276" width="24" height="24" fill="#f6f1ec" stroke="#efe9e3"/><text x="480" y="292" font-size="11.5" fill="#2b2b2b" text-anchor="middle">16</text><rect x="492" y="276" width="24" height="24" fill="#f6f1ec" stroke="#efe9e3"/><text x="504" y="292" font-size="11.5" fill="#2b2b2b" text-anchor="middle">20</text><rect x="516" y="276" width="24" height="24" fill="#f6f1ec" stroke="#efe9e3"/><text x="528" y="292" font-size="11.5" fill="#2b2b2b" text-anchor="middle">24</text><rect x="396" y="300" width="24" height="24" fill="#f7e6e1" stroke="#efe9e3"/><text x="408" y="316" font-size="11.5" fill="#a33a28" text-anchor="middle">10</text><rect x="420" y="300" width="24" height="24" fill="#f7e6e1" stroke="#efe9e3"/><text x="432" y="316" font-size="11.5" fill="#a33a28" text-anchor="middle">20</text><rect x="444" y="300" width="24" height="24" fill="#f7e6e1" stroke="#efe9e3"/><text x="456" y="316" font-size="11.5" fill="#a33a28" text-anchor="middle">30</text><rect x="468" y="300" width="24" height="24" fill="#f7e6e1" stroke="#efe9e3"/><text x="480" y="316" font-size="11.5" fill="#a33a28" text-anchor="middle">40</text><rect x="492" y="300" width="24" height="24" fill="#f7e6e1" stroke="#efe9e3"/><text x="504" y="316" font-size="11.5" fill="#a33a28" text-anchor="middle">50</text><rect x="516" y="300" width="24" height="24" fill="#f7e6e1" stroke="#efe9e3"/><text x="528" y="316" font-size="11.5" fill="#a33a28" text-anchor="middle">60</text><rect x="396" y="324" width="24" height="24" fill="#f6f1ec" stroke="#efe9e3"/><text x="408" y="340" font-size="11.5" fill="#2b2b2b" text-anchor="middle">6</text><rect x="420" y="324" width="24" height="24" fill="#f6f1ec" stroke="#efe9e3"/><text x="432" y="340" font-size="11.5" fill="#2b2b2b" text-anchor="middle">12</text><rect x="444" y="324" width="24" height="24" fill="#f6f1ec" stroke="#efe9e3"/><text x="456" y="340" font-size="11.5" fill="#2b2b2b" text-anchor="middle">18</text><rect x="468" y="324" width="24" height="24" fill="#f6f1ec" stroke="#efe9e3"/><text x="480" y="340" font-size="11.5" fill="#2b2b2b" text-anchor="middle">24</text><rect x="492" y="324" width="24" height="24" fill="#f6f1ec" stroke="#efe9e3"/><text x="504" y="340" font-size="11.5" fill="#2b2b2b" text-anchor="middle">30</text><rect x="516" y="324" width="24" height="24" fill="#f6f1ec" stroke="#efe9e3"/><text x="528" y="340" font-size="11.5" fill="#2b2b2b" text-anchor="middle">36</text>
+  <g stroke="#8c857c" stroke-width="1.2">
+    <line x1="200" y1="160" x2="386" y2="116" marker-end="url(#am)"/>
+    <line x1="200" y1="196" x2="386" y2="276" marker-end="url(#am)"/>
+  </g>
+  <text x="124" y="272" font-size="12" fill="#6b6b6b" text-anchor="middle">第 5 行整行未观测</text>
+  <text x="468" y="366" font-size="11.5" fill="#6b6b6b" text-anchor="middle">两个补全都符合观测，秩都是 1</text>
+</svg>
+<figcaption>图 6 ｜ 矩阵补全的问题：观测只覆盖部分格子（左，第 5 行整行缺失）。两种补法都与观测一致，秩都为 1——只看观测，判断不了第 5 行该是 5j 还是 10j。这就是「给定观测模式，解是否唯一」。</figcaption>
+</figure>
+<p>Shapiro、Xie、Zhang 2018 从几何角度处理最小秩矩阵补全（minimum rank matrix completion，MRMC）<sup>[5]</sup>。四条结论：</p>
+<ol class="steps">
+<li>给出可代数验证的充分条件，称良态条件（well-posedness condition），保证局部唯一（local uniqueness）。</li>
+<li>该条件近乎必要：例外情形极少；同时是局部稳定性的必要条件。</li>
+<li>用 characteristic rank（矩阵在一般位置上能达到的秩）证明它一般成立：多数观测模式良态，病态是特例。</li>
+<li>低秩近似（low-rank approximation）比直接求最小秩更稳定。</li>
+</ol>
+<p>几何图像：</p>
+<ol class="steps">
+<li>低秩矩阵构成流形（manifold，局部看像平面的曲面）。</li>
+<li>「符合观测」构成约束。</li>
+<li>两者横截相交时，解是孤立点，稳定。</li>
+<li>两者近似相切时，解成一族，扰动可把解移到另一处。</li>
+</ol>
+
+<figure>
+<svg viewBox="0 0 640 300" width="100%" role="img" aria-label="横截与相切两种相交方式">
+  <rect x="0" y="0" width="640" height="300" fill="#fff"/>
+  <g font-size="14" fill="#2b2b2b">
+    <text x="40" y="30">横截：解唯一</text>
+    <text x="352" y="30">相切：解成一族</text>
+  </g>
+  <line x1="40" y1="232" x2="300" y2="86" stroke="#2b2b2b" stroke-width="1.8"/>
+  <path d="M 46 104 C 112 58, 196 206, 296 204" fill="none" stroke="#a33a28" stroke-width="2"/>
+  <circle cx="179.8" cy="153.5" r="5.5" fill="#2b2b2b"/>
+  <line x1="204" y1="126" x2="184" y2="150" stroke="#6b6b6b" stroke-width="0.9"/>
+  <text x="208" y="121" font-size="13" fill="#6b6b6b">唯一解</text>
+  <text x="44" y="88" font-size="12" fill="#a33a28">流形</text>
+  <text x="46" y="254" font-size="12" fill="#2b2b2b">约束</text>
+  <polygon points="346.6,215.3 580.6,97.3 591.4,118.7 357.4,236.7" fill="#2b2b2b" fill-opacity="0.05"/>
+  <g stroke="#c9c3bb" stroke-width="1" stroke-dasharray="5 4">
+    <line x1="346.6" y1="215.3" x2="580.6" y2="97.3"/><line x1="357.4" y1="236.7" x2="591.4" y2="118.7"/>
+  </g>
+  <line x1="352" y1="226" x2="586" y2="108" stroke="#2b2b2b" stroke-width="1.8"/>
+  <path d="M 410.2 252.7 L 412.1 247.1 L 414.1 241.8 L 416.1 236.6 L 418.2 231.5 L 420.4 226.6 L 422.7 221.9 L 425.1 217.3 L 427.5 212.8 L 430.0 208.6 L 432.6 204.4 L 435.3 200.5 L 438.0 196.7 L 440.8 193.0 L 443.7 189.5 L 446.7 186.2 L 449.8 183.0 L 452.9 179.9 L 456.1 177.0 L 459.4 174.3 L 462.8 171.7 L 466.2 169.3 L 469.7 167.1 L 473.3 165.0 L 477.0 163.0 L 480.8 161.2 L 484.6 159.6 L 488.5 158.1 L 492.5 156.7 L 496.6 155.6 L 500.8 154.6 L 505.0 153.7 L 509.3 153.0 L 513.7 152.4 L 518.1 152.0 L 522.7 151.8 L 527.3 151.7 L 532.0 151.7 L 536.8 152.0 L 541.6 152.3 L 546.6 152.9 L 551.6 153.5 L 556.7 154.4 L 561.8 155.4 L 567.1 156.5 L 572.4 157.8 L 577.8 159.3 L 583.3 160.9 L 588.8 162.7" fill="none" stroke="#a33a28" stroke-width="2"/>
+  <path d="M 438.7 195.8 L 441.5 192.2 L 444.3 188.8 L 447.3 185.6 L 450.3 182.5 L 453.3 179.5 L 456.5 176.7 L 459.7 174.1 L 463.0 171.5 L 466.4 169.2 L 469.9 167.0 L 473.4 164.9 L 477.0 163.0 L 480.7 161.2 L 484.5 159.6 L 488.3 158.2 L 492.2 156.9 L 496.2 155.7 L 500.3 154.7 L 504.4 153.8 L 508.6 153.1 L 512.9 152.5 L 517.2 152.1 L 521.7 151.8 L 526.2 151.7" fill="none" stroke="#a33a28" stroke-width="5" stroke-linecap="round"/>
+  <line x1="352" y1="226" x2="586" y2="108" stroke="#2b2b2b" stroke-width="1.8"/>
+  <circle cx="438.7" cy="195.8" r="3.6" fill="#a33a28"/>
+  <circle cx="526.2" cy="151.7" r="3.6" fill="#a33a28"/>
+  <line x1="490" y1="104" x2="491" y2="146" stroke="#6b6b6b" stroke-width="0.9"/>
+  <text x="470" y="96" font-size="13" fill="#6b6b6b">解是一段</text>
+  <text x="352" y="270" font-size="11.5" fill="#8c857c">灰带：观测的不确定范围</text>
+</svg>
+<figcaption>图 7 ｜ 横截（左）：流形与约束只交于一点，解孤立。近相切（右）：把约束看成一条有厚度的带，带与流形的交集是一整段，解不唯一。</figcaption>
+</figure>
+
+<p>四条结论里，第 4 条值得单独写开。记观测到的元素为 X、待补的矩阵为 M、观测位置集合为 Ω，两种写法只差在约束怎么放<sup>[1]</sup>。</p>
+
+<table>
+<tr><th>写法</th><th>优化问题</th></tr>
+<tr><td>最小秩</td><td>min<sub>M</sub> rank(M)，约束 M<sub>ij</sub> = X<sub>ij</sub>，其中 (i,j) ∈ Ω</td></tr>
+<tr><td>低秩近似</td><td>min<sub>U,V</sub> Σ<sub>(i,j)∈Ω</sub> (X<sub>ij</sub> − [UV]<sub>ij</sub>)<sup>2</sup></td></tr>
+</table>
+
+<p>两种写法面对的是同一组观测。上面是等式约束，秩只能取整数，数据一动，解可能落到另一个秩上，答案跳变；下面把秩固定成 U 的列数，把等式放松成最小二乘，解连续地依赖数据。秩跳变带来的不稳定就此消失，这就是第 4 条结论的机制。</p>
+
+<div class="concl"><b>结论：</b>换观测模式就是换问题；算法不变，良态与病态可以互换。</div>
+
+<details><summary>选看：横截性（transversality）</summary>
+<div class="in">
+<p>两个子流形 M、N 在交点 p 处横截，指它们的切空间加起来张满整个空间：T<sub>p</sub>M + T<sub>p</sub>N = 全空间。这时交集「不多不少」，维数正好是 dim M + dim N − dim(全空间)。</p>
+<p>不横截时，两个切空间合起来还差一截，交集就会比预期多出至少一维：本应是孤立点，结果成了一条曲线或一个曲面。矩阵补全里，低秩流形与观测约束的切空间不横截，解就从孤立点变成一族。</p>
+<p>第 7 节的良态条件，本质上就是这个横截条件的一个可代数验证的版本：把「两个切空间张满」写成矩阵的秩条件，就能对方程组做计算验证。</p>
+</div>
+</details>
+
+<h2 id="s8"><span class="n">08</span>结果不对时，按什么顺序排查</h2>
+
+<p>结果和预期不符时，先定责，再动手。下面五步从最省事的动作开始，每一步排除一种责任；括号里注明这一步的判据出自哪一节。</p>
+<ol class="steps">
+<li><b>换成数学等价、数值更优的算法</b>（第 1、2 节），例如把正规方程（normal equation，即两边左乘 A<sup>T</sup> 得到的 A<sup>T</sup>Ax = A<sup>T</sup>b）换成 QR 分解（QR decomposition，A = QR，Q 正交、R 上三角）。结果正确则问题在算法；仍不正确则继续。</li>
+<li><b>计算残量</b>（residual）‖b − Ax̂‖（第 5 节）。残量小、答案错，说明问题病态。</li>
+<li><b>在数据上加小噪声重算</b>（第 3、4 节）。答案大幅变化，说明问题病态。</li>
+<li><b>计算 κ 与机器精度的乘积</b>（第 4 节）。接近 1 时，矩阵在该精度下已事实上奇异（numerically singular）。</li>
+<li><b>换等价表述</b>（第 6、7 节）：换基、缩放、换参数化。答案随之变化，说明病态来自表述，可以避开。</li>
+</ol>
+
+<table>
+<tr><th>现象</th><th>该怀疑谁</th><th>怎么办</th></tr>
+<tr><td>结果错，残量却很小</td><td>问题（病态）</td><td>换表述、正则化、提精度</td></tr>
+<tr><td>换等价算法后结果大变</td><td>问题（病态）</td><td>换表述、正则化</td></tr>
+<tr><td>结果错，残量也大</td><td>算法（不稳定或没收敛）</td><td>换算法、加迭代</td></tr>
+<tr><td>加一点噪声答案就跳</td><td>问题（病态）</td><td>正则化、降维</td></tr>
+<tr><td>κ×机器精度接近 1</td><td>精度不够</td><td>提高精度或降规模</td></tr>
+</table>
+
+<p>这五步的判据没有一条出自本节：分层来自第 1 节，不稳定的定义来自第 2 节，「残量小、答案错」为何可能来自第 5 节，κ 的定义与有效位数换算来自第 4 节，换表述的理由来自第 6、7 节。本节只做排序。</p>
+<p>整篇按一条误差链展开：算法把误差压到机器精度量级，问题把它放大 κ 倍。第 1、2 节界定「稳定」「不稳定」到底指什么，第 3 节演示责任怎么从算法滑到数据，第 4 节给出放大的倍数，第 5 节把这条链写成不等式，第 6 节给出病态的几何实质，第 7 节说明换问题才是最彻底的解法，本节把整条链折成一张排查表。</p>
+<p>这个顺序不能调换：先有责任的分层，才有排查的先后。省掉这个结构的代价很具体：把病态当成不稳定，会把所有算法试一遍；把不稳定当成病态，会一直加精度。两种都不解决问题，因为动手的位置和病因不在同一侧。</p>
+
+<div class="concl"><b>结论：</b>先定责，再动手。顺序错了，换算法和加精度都是白费。</div>
+
+<details><summary>选看：正规方程为什么要先换掉</summary>
+<div class="in">
+<p>第 1 步提到的正规方程（normal equation），是把 A<sup>T</sup>Ax = A<sup>T</sup>b 当普通方程来解。写法简单，代价是条件数被平方：κ₂(A<sup>T</sup>A) = κ₂(A)²。</p>
+<p>A 的 κ 是 10<sup>8</sup> 时，A<sup>T</sup>A 的 κ 就是 10<sup>16</sup>——双精度下一位有效数字都不剩。这时换多好的求解器都没用，因为病态度在第一步就被放大了两次。</p>
+<p>QR 分解不做这一步：A = QR，解 Rx = Q<sup>T</sup>b 只需回代，条件数维持在 κ(A)。所以第 1 步换算法，换掉的是那个会把 κ 平方的中间步骤，不是换一个更快的求解器。</p>
+</div>
+</details>
+
+<h2><span class="n">附</span>来源</h2>
+<ol class="src">
+<li>Wang, J. AIE6001 Lecture 7: Basics of Algorithms（课程讲义，43 页；AIE6001_Lecture7_Jie_Wang.pdf，PDF 生成于 2025-11-01）。本文的四个评价维度、算法稳定与数据条件的两分法、矩阵补全「最小秩不稳定、低秩近似稳定」的对照均源自此讲；讲义另含 Wilkinson 例、线性规划的病态反例、FFT 推导。</li>
+<li>Wilkinson, J. H. The evaluation of the zeros of ill-conditioned polynomials, Part I. Numerische Mathematik 1 (1959) 150–166.</li>
+<li>Wilkinson 多项式的公开整理，含 2<sup>−23</sup> 与 Pilot ACE 30 位有效数的关系、扰动后二十个根的数值。</li>
+<li>Moler, C. Wilkinson's Polynomials. MathWorks 博客，2013-03-04。</li>
+<li>Shapiro, A., Xie, Y., Zhang, R. Matrix completion with deterministic pattern – a geometric perspective. arXiv:1802.00047；IEEE Transactions on Signal Processing, 2018，doi:10.1109/TSP.2018.2885494。</li>
+<li>本机精确计算：Python 3.13.14，fractions 模块，1-范数条件数，2026-11-19。</li>
+</ol>
+
+</main>
+</body>
+</html>
