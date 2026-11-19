@@ -49,32 +49,32 @@ summary:hover{background:#f1ece6}
 <body>
 <main>
 
-<h1>算法没错，为什么答案错了</h1>
+<h1>算法没错，为什么答案错了？</h1>
 <div class="lead">————从「不稳定」到「病态」</div>
 <div class="sub">作者：RainHan    |    目标读者：学过线性代数</div>
   
-<p class="lead">一个每一步都没算错的算法，为什么会给出错得离谱的答案。答案是：问题不在算法里。</p>
+<p class="lead">一个每一步都没算错的算法，为什么会给出看起来离谱的答案？答案是：问题不在算法里。</p>
 
 <nav class="toc">
-<a href="#s1"><b>01</b>评价算法：四个维度，只有稳定属于算法</a>
-<a href="#s2"><b>02</b>不稳定：算法放大的是舍入误差</a>
-<a href="#s3"><b>03</b>Wilkinson 1959：系数动一点点，十个根变成复数</a>
-<a href="#s4"><b>04</b>条件数：把「敏感」变成一个可算的数</a>
+<a href="#s1"><b>01</b>评价算法：四个维度，只有稳定独属于算法</a>
+<a href="#s2"><b>02</b>不稳定性：算法放大的是舍入误差</a>
+<a href="#s3"><b>03</b>Wilkinson 1959：系数动一点点，十个整数根变成复数根</a>
+<a href="#s4"><b>04</b>条件数κ：把「敏感」变成一个可算的数</a>
 <a href="#s5"><b>05</b>向后稳定：算法保证了什么，又没保证什么</a>
 <a href="#s6"><b>06</b>病态的实质：约束不独立，不是数太大</a>
 <a href="#s7"><b>07</b>矩阵补全：换观测模式，就是换问题</a>
-<a href="#s8"><b>08</b>结果不对时，按什么顺序排查</a>
+<a href="#s8"><b>08</b>启发：结果不对时，按什么顺序排查</a>
 </nav>
 
-<h2 id="s1"><span class="n">01</span>评价算法：四个维度，只有稳定属于算法</h2>
+<h2 id="s1"><span class="n">01</span>评价算法：四个维度，只有稳定独属于算法</h2>
 
 <p>衡量一个算法，常用四个词：准确（accuracy）、高效（efficiency）、稳定（stability）、鲁棒（robustness）。混用会导致后面把「算法不稳定」和「问题病态」当成一件事。</p>
 <p><b>准确（accuracy）</b>：答案离真值有多近。度量有两种：绝对误差，取估计值与真值之差；相对误差，取这个差再除以真值的大小<sup>[1]</sup>。</p>
 <p><b>高效（efficiency）</b>：达到给定精度要花多少资源。通常是时间和空间；中间步骤调用 API（应用程序接口）时，费用也是资源，按次计费，规模一大就是主要成本。资源与精度绑在一起：精度目标提高，资源跟着涨，所以论效率总要带上精度目标<sup>[1]</sup>。</p>
-<p><b>稳定（stability）</b>：算术只能保留有限位小数，这个限制会不会被算法放大。</p>
-<p><b>鲁棒（robustness）</b>：换一批数据，结果还靠不靠得住。窄的说法是遇到坏点、离群值（outlier）不崩；宽的说法是能在大范围数据上可靠工作，随机数据也算<sup>[1]</sup>。</p>
+<p><b>稳定（stability）</b>：算术只能保留有限位小数，计算限制造成的误差会不会被算法放大？稳定的算法应当限制这种误差的放大</p>
+<p><b>鲁棒（robustness）</b>：换一批数据，结果还靠不靠得住。窄的说法是遇到坏点、离群值（outlier）不崩；宽的说法是算法能在大范围的数据上可靠工作，甚至随机数据上都行<sup>[1]</sup>。</p>
 <p>四个词分属两层：准确、高效、鲁棒评价「问题 + 数据 + 算法」这个整体，稳定只评价算法本身。</p>
-<p>分层的用处：准确不达标可能是问题无解，鲁棒不达标可能是数据脏，两者与数值误差无关，不能算在算法头上。</p>
+<p>准确不达标可能是问题无解，鲁棒不达标可能是数据脏，此时两者与数值误差无关，不能算在算法头上。</p>
 
 <div class="concl"><b>结论：</b>稳定性属于算法，良态与病态属于问题，两者必须分开。</div>
 
@@ -89,18 +89,18 @@ summary:hover{background:#f1ece6}
 <li>先算 10<sup>16</sup> + 1。10<sup>16</sup> 的二进制是 1 后跟 16 个 0，占 17 位；双精度（double precision）只存约 16 位十进制有效数字，即 53 位二进制。</li>
 <li>那个 1 要占第 17 位，超出范围，被舍掉。10<sup>16</sup> + 1 得 10<sup>16</sup>。</li>
 <li>再算 10<sup>16</sup> − 10<sup>16</sup>，得 0。</li>
-<li>数学上等于 1，浮点上等于 0。加减法没错，错在第一步那个 1 没被存下。</li>
+<li>最终发现，算式在数学上等于 1，但浮点计算上等于 0。</li>
 </ol>
-<p>常见的说法是「轻微扰动带来巨大变化」。这个说法有三个缺口，第 3、4 节逐个补。</p>
+<p>常见的说法是「轻微扰动带来巨大变化」。这个说法直观，但为了严谨需要考虑三点:</p>
 <ol class="steps">
-<li>没有相对（relative）。绝对变化 10<sup>−6</sup> 的好坏取决于量本身是 1 还是 10<sup>−6</sup>。</li>
-<li>没有最坏情况（worst case）。它只是上界，不保证每次发生。</li>
-<li>没有说明扰动来自哪里。本节指算术误差，下一节指数据误差。</li>
+<li>相对还是绝对？变化和扰动都要考虑。</li>
+<li>最坏情况（worst case）还是平均情况？或是别的？</li>
+<li>扰动来自哪里？算术误差，还是数据误差？或是别的？</li>
 </ol>
 
 <div class="concl"><b>结论：</b>不稳定指算法放大机器误差，这里的扰动指算术误差。</div>
 
-<h2 id="s3"><span class="n">03</span>Wilkinson 1959：系数动一点点，十个根变成复数</h2>
+<h2 id="s3"><span class="n">03</span>Wilkinson 1959：系数动一点点，十个整数根变成复数根</h2>
 
 <p>取多项式（polynomial）p(x) = (x−1)(x−2)…(x−20)。二十个根（root），全是正整数，相邻间隔 1。</p>
 <p>它有两种写法：</p>
@@ -117,16 +117,6 @@ summary:hover{background:#f1ece6}
 <li>落在第十位有效数字，动了一个单位。</li>
 </ol>
 <p>结果分两部分。十个根变成复数（complex number），形成五对共轭（conjugate，实部相同、虚部相反）复根；其余十个仍在实轴，但位置偏移，最远的是 20 → 20.84691<sup>[3][4]</sup>。</p>
-<p>2<sup>−23</sup> 的来源：</p>
-<ol class="steps">
-<li>Pilot ACE 是英国国家物理实验室 1950 年造的一台早期计算机，按图灵的 ACE 方案实现，Wilkinson 参与研制。它的浮点有效数字只有 30 位二进制。</li>
-<li>该精度下，−210 附近相邻浮点数的间距是 2<sup>−23</sup>。</li>
-<li>更小的改动会被存成同一个数，无法区分。</li>
-<li>机器精度再低一点，改动在存储阶段就被抹掉。</li>
-</ol>
-<p>由表示方式产生的误差叫表示误差（representation error）<sup>[3]</sup>。</p>
-<p>责任在这里换了位置。前面说不稳定，责任在算法；这里算法没有问题，用当时最好的求根算法、以双精度重算，结果相同。根偏移的原因是「二十个根压进二十个系数」这一表示损失了精度。</p>
-<p>扰动不在算术里，在数据里。</p>
 
 <figure>
 <svg viewBox="0 0 640 400" width="100%" role="img" aria-label="Wilkinson 多项式扰动前后二十个根在复平面上的位置">
@@ -163,20 +153,20 @@ summary:hover{background:#f1ece6}
   </g>
   <text x="536" y="310" font-size="13" fill="#a33a28">20 → 20.85</text>
 </svg>
-<figcaption>图 1 ｜ 系数动 5.7×10<sup>−10</sup>，根离开实轴。浅色空心圆是扰动前的整数根，红点是扰动后的位置：1 到 5 原地不动，6 到 9 只挪一点，10 到 19 两两并成五对共轭复根（只画上半平面），最远的 20 挪到 20.85。求解器没有出错，是这组根对这组系数敏感。</figcaption>
+<figcaption>图 1 ｜ 系数动 5.7×10<sup>−10</sup>，根离开实轴。浅色空心圆是扰动前的整数根，红点是扰动后的位置：1 到 5 原地不动，6 到 9 只挪一点，10 到 19 两两并成五对共轭复根（只画上半平面），原来的 20 挪到 20.85。求解器没有出错，是这组根对这组系数敏感。</figcaption>
 </figure>
 
 <div class="concl"><b>结论：</b>同一个算法，换一份几乎相同的数据，答案从 20 变成 20.8——这不是算法的毛病。</div>
 
-<h2 id="s4"><span class="n">04</span>条件数：把「敏感」变成一个可算的数</h2>
+<h2 id="s4"><span class="n">04</span>条件数κ：把「敏感」变成一个可算的数</h2>
 
 <p>度量问题本身敏感度的量是条件数（condition number），记作 κ。定义分五步：</p>
 <ol class="steps">
-<li>取输入 b。解方程时是右端项，求根时是系数。</li>
-<li>加扰动 δb。可以是测量误差，也可以是存储误差。</li>
+<li>取输入 b </li>
+<li>加扰动 δb </li>
 <li>得到扰动后的解 x + δx。</li>
 <li>计算 ( ‖δx‖ / ‖x‖ ) ÷ ( ‖δb‖ / ‖b‖ )。</li>
-<li>对所有 δb 取最大值，即 κ(A)。</li>
+<li> κ(A) 即上式最大值</li>
 </ol>
 <p>含义：输入相对误差为 ε 时，输出相对误差最多为 κε。</p>
 
@@ -185,7 +175,7 @@ summary:hover{background:#f1ece6}
 <p>三个限定，缺一不可：</p>
 <ol class="steps">
 <li><b>相对</b>（relative）。分子分母都是相对量，绝对量无法判断大小。</li>
-<li><b>固定范数与缩放</b>（norm and scaling）。范数指衡量向量大小的方式，缩放指各行的相对比例。方程组每行乘 2，解不变，κ 变。κ 属于表示，不属于矩阵本身。</li>
+<li><b>固定范数与缩放</b>（norm and scaling）。范数指衡量向量大小的方式，缩放指各行的相对比例。方程组每行乘 2，解不变，κ 变。</li>
 <li><b>最坏情况</b>（worst case）。κ 是上确界（supremum，最小的上界），不是典型值。</li>
 </ol>
 <p>有效数字换算：</p>
@@ -409,7 +399,7 @@ summary:hover{background:#f1ece6}
 </div>
 </details>
 
-<details><summary>选看：Hilbert 矩阵的条件数（本机精确计算）</summary>
+<details><summary>选看：Hilbert 矩阵的条件数 </summary>
 <div class="in">
 <p>Hilbert 矩阵 H<sub>ij</sub> = 1/(i+j−1)。用有理数精确求逆，计算 1-范数条件数<sup>[6]</sup>：</p>
 <table>
@@ -564,12 +554,12 @@ summary:hover{background:#f1ece6}
 
 <h2><span class="n">附</span>来源</h2>
 <ol class="src">
-<li>Wang, J. AIE6001 Lecture 7: Basics of Algorithms（课程讲义，43 页；AIE6001_Lecture7_Jie_Wang.pdf，PDF 生成于 2025-11-01）。本文的四个评价维度、算法稳定与数据条件的两分法、矩阵补全「最小秩不稳定、低秩近似稳定」的对照均源自此讲；讲义另含 Wilkinson 例、线性规划的病态反例、FFT 推导。</li>
+<li>Jie Wang. AIE6001 Lecture 7: Basics of Algorithms，2025-11-01. You can find this on his homepage: https://walterbabyrudin.github.io/</li>
 <li>Wilkinson, J. H. The evaluation of the zeros of ill-conditioned polynomials, Part I. Numerische Mathematik 1 (1959) 150–166.</li>
 <li>Wilkinson 多项式的公开整理，含 2<sup>−23</sup> 与 Pilot ACE 30 位有效数的关系、扰动后二十个根的数值。</li>
 <li>Moler, C. Wilkinson's Polynomials. MathWorks 博客，2013-03-04。</li>
 <li>Shapiro, A., Xie, Y., Zhang, R. Matrix completion with deterministic pattern – a geometric perspective. arXiv:1802.00047；IEEE Transactions on Signal Processing, 2018，doi:10.1109/TSP.2018.2885494。</li>
-<li>本机精确计算：Python 3.13.14，fractions 模块，1-范数条件数，2026-11-19。</li>
+<li>本机计算：Python 3.13.14，fractions 模块，1-范数条件数，2026-11-19。</li>
 </ol>
 
 </main>
